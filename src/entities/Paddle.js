@@ -14,8 +14,32 @@ export class Paddle {
 
     draw() {
         this.graphic.clear();
-        this.graphic.beginFill(0x3498db); // синий цвет
-        this.graphic.drawRect(0, 0, this.width, this.height);
+
+        // основной серебристо-серый корпус Vaus
+        this.graphic.beginFill(0xcccccc);
+        this.graphic.drawRect(4, 2, this.width - 8, this.height - 4);
+        this.graphic.endFill();
+
+        // скошенные края
+        this.graphic.beginFill(0x95a5a6);
+        this.graphic.drawRect(2, 4, 2, this.height - 8);
+        this.graphic.drawRect(this.width - 4, 4, 2, this.height - 8);
+        this.graphic.endFill();
+
+        // контрастные красные наконечники по бокам
+        this.graphic.beginFill(0xe74c3c);
+        this.graphic.drawRect(0, 5, 2, this.height - 10);
+        this.graphic.drawRect(this.width - 2, 5, 2, this.height - 10);
+        this.graphic.endFill();
+
+        // верхний светлый блик (полоса)
+        this.graphic.beginFill(0xffffff);
+        this.graphic.drawRect(6, 2, this.width - 12, 2);
+        this.graphic.endFill();
+
+        // нижняя тень
+        this.graphic.beginFill(0x7f8c8d);
+        this.graphic.drawRect(4, this.height - 3, this.width - 8, 2);
         this.graphic.endFill();
     }
 
