@@ -1,6 +1,6 @@
 export class Ball {
     constructor() {
-        this.radius = 8;
+        this.radius = 8; // сохраняет радиус для коллизий
         this.graphic = new PIXI.Graphics();
         this.vx = 3;
         this.vy = -3;
@@ -12,8 +12,23 @@ export class Ball {
 
     draw() {
         this.graphic.clear();
-        this.graphic.beginFill(0xf1c40f); // желтый цвет
-        this.graphic.drawCircle(0, 0, this.radius);
+        
+        
+        const size = this.radius * 2;
+        
+        // внешняя рамка
+        this.graphic.beginFill(0xd35400);
+        this.graphic.drawRect(-this.radius, -this.radius, size, size);
+        this.graphic.endFill();
+
+        // основное тело мяча (оранжево-красное)
+        this.graphic.beginFill(0xe67e22);
+        this.graphic.drawRect(-this.radius + 1, -this.radius + 1, size - 2, size - 2);
+        this.graphic.endFill();
+
+        // яркое белое ядро в центре
+        this.graphic.beginFill(0xffffff);
+        this.graphic.drawRect(-2, -2, 4, 4);
         this.graphic.endFill();
     }
 
