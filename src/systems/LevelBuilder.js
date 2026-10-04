@@ -13,16 +13,17 @@ export class LevelBuilder {
         const totalWidth = cols * brickWidth + (cols - 1) * padding;
         const leftOffset = (screenWidth - totalWidth) / 2;
 
-        // цвета для 5 рядов (сверху вниз)
-        const colors = [0xe74c3c, 0xe67e22, 0xf1c40f, 0x2ecc71, 0x3498db];
+        
+        const colors = [0xbdc3c7, 0xe74c3c, 0xe67e22, 0xf1c40f, 0x2ecc71];
 
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const x = leftOffset + c * (brickWidth + padding);
                 const y = topOffset + r * (brickHeight + padding);
                 const color = colors[r];
+                const hp = (r === 0) ? 2 : 1; // верхний ряд — серебряные блоки с 2 HP
 
-                const brick = new Brick(x, y, brickWidth, brickHeight, color);
+                const brick = new Brick(x, y, brickWidth, brickHeight, color, hp);
                 
                 // начальная позиция для анимации появления (падение сверху + fade-in)
                 brick.graphic.y = y - 120;

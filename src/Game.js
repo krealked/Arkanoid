@@ -7,8 +7,9 @@ export class Game {
     constructor() {
         this.app = null;
         this.paddle = null;
-        this.ball = null;
+        this.balls = [];
         this.bricks = [];
+        this.powerUps = [];
         
         this.score = 0;
         this.state = 'WAITING'; // 'WAITING', 'PLAYING', 'GAME_OVER', 'VICTORY'
@@ -17,10 +18,13 @@ export class Game {
         this.messageText = null;
         this.tutorialMouseText = null;
         this.tutorialBricksText = null;
+
+        this.expandTimer = null;
+        this.slowTimer = null;
     }
 
     async init() {
-        // настройка PixiJS для пиксель-арта (отключение сглаживания)
+        // настройка PixiJS
         if (PIXI.settings) {
             PIXI.settings.SCALE_MODE = PIXI.SCALE_MODES.NEAREST;
         }
@@ -38,7 +42,7 @@ export class Game {
 
         document.getElementById('game-container').appendChild(this.app.view);
 
-        // загрузка и настройка фонового спрайта для канваса (canvas-bg.png)
+        // Загрузка и настройка фонового спрайта
         const bgSprite = PIXI.Sprite.from('assets/canvas-bg.png');
         bgSprite.width = 800;
         bgSprite.height = 600;
@@ -59,9 +63,10 @@ export class Game {
         this.paddle = new Paddle(this.app.screen.width, this.app.screen.height);
         this.paddle.addToStage(this.app.stage);
 
-        this.ball = new Ball();
-        this.ball.resetToPaddle(this.paddle);
-        this.ball.addToStage(this.app.stage);
+        const initialBall = new Ball();
+        initialBall.resetToPaddle(this.paddle);
+        initialBall.addToStage(this.app.stage);
+        this.balls.push(initialBall);
 
         this.bricks = LevelBuilder.createBricks(this.app.stage, this.app.screen.width);
 
@@ -76,13 +81,16 @@ export class Game {
     createUI() {
         const scoreStyle = new PIXI.TextStyle({
             fontFamily: '"Press Start 2P", monospace',
-            fontSize: 14,
+            fontSize: 16,
+            lineHeight: 20,
             fill: '#00ffcc',
-            align: 'left'
+            align: 'left',
+            padding: 12
         });
 
         this.scoreText = new PIXI.Text('SCORE: 0', scoreStyle);
-        this.scoreText.x = 20;
+        this.scoreText.anchor.set(0, 0);
+        this.scoreText.x = 24;
         this.scoreText.y = 20;
         this.app.stage.addChild(this.scoreText);
 
@@ -126,16 +134,37 @@ export class Game {
         this.score = 0;
         this.scoreText.text = 'SCORE: 0';
         
-        // очищаем старые оставшиеся графические элементы блоков на всякий случай
+        // очищаем оставшиеся блоки
         this.bricks.forEach(brick => {
             if (brick.graphic.parent) {
                 this.app.stage.removeChild(brick.graphic);
             }
         });
 
+        // очищаем капсулы бонусов
+        this.powerUps.forEach(p => p.removeFromStage(this.app.stage));
+        this.powerUps = [];
+
+        // очищаем старые мячи
+        this.balls.forEach(b => {
+            if (b.graphic.parent) this.app.stage.removeChild(b.graphic);
+        });
+        this.balls = [];
+
         this.bricks = LevelBuilder.createBricks(this.app.stage, this.app.screen.width);
-        this.ball.resetToPaddle(this.paddle);
-        
+
+        const newBall = new Ball();
+        newBall.resetToPaddle(this.paddle);
+        newBall.addToStage(this.app.stage);
+        this.balls.push(newBall);
+
+        // сбрасываем размер платформы
+        this.paddle.width = 100;
+        this.paddle.draw();
+
+        if (this.expandTimer) clearTimeout(this.expandTimer);
+        if (this.slowTimer) clearTimeout(this.slowTimer);
+
         this.state = 'WAITING';
         this.messageText.text = 'CLICK TO START';
         this.messageText.visible = true;
@@ -154,9 +183,9 @@ export class Game {
 
             this.paddle.setX(newX, this.app.screen.width);
 
-            if (this.state === 'WAITING') {
-                this.ball.x = this.paddle.x + this.paddle.width / 2;
-                this.ball.updatePosition();
+            if (this.state === 'WAITING' && this.balls.length > 0) {
+                this.balls[0].x = this.paddle.x + this.paddle.width / 2;
+                this.balls[0].updatePosition();
             }
         });
 
@@ -166,8 +195,10 @@ export class Game {
                 this.messageText.text = '';
                 if (this.tutorialMouseText) this.tutorialMouseText.visible = false;
                 if (this.tutorialBricksText) this.tutorialBricksText.visible = false;
-                this.ball.vx = 3;
-                this.ball.vy = -3;
+                if (this.balls.length > 0) {
+                    this.balls[0].vx = 3;
+                    this.balls[0].vy = -3;
+                }
             } else if (this.state === 'GAME_OVER' || this.state === 'VICTORY') {
                 this.restartGame();
             }
@@ -182,9 +213,11 @@ export class Game {
 
     update(delta) {
         if (this.state === 'WAITING') {
-            this.ball.x = this.paddle.x + this.paddle.width / 2;
-            this.ball.y = this.paddle.y - this.ball.radius;
-            this.ball.updatePosition();
+            if (this.balls.length > 0) {
+                this.balls[0].x = this.paddle.x + this.paddle.width / 2;
+                this.balls[0].y = this.paddle.y - this.balls[0].radius;
+                this.balls[0].updatePosition();
+            }
             return;
         }
 
@@ -192,32 +225,115 @@ export class Game {
             return;
         }
 
-        // движение мяча
-        this.ball.x += this.ball.vx * delta;
-        this.ball.y += this.ball.vy * delta;
-        this.ball.updatePosition();
+        // обновление падающих капсул бонусов
+        for (let i = 0; i < this.powerUps.length; i++) {
+            this.powerUps[i].update(delta);
+        }
 
-        // проверка столкновений со стенами
-        CollisionManager.checkWallCollisions(this.ball, this.app.screen.width, () => {
+        // проверка сбора бонусов платформой
+        CollisionManager.checkPowerUpPaddleCollision(this.powerUps, this.paddle, this.app.stage, (type) => {
+            this.activatePowerUp(type);
+        });
+
+        // обновление всех активных мячей
+        for (let i = this.balls.length - 1; i >= 0; i--) {
+            const ball = this.balls[i];
+
+            ball.x += ball.vx * delta;
+            ball.y += ball.vy * delta;
+            ball.updatePosition();
+
+            // отскок от стен
+            CollisionManager.checkWallCollisions(ball, this.app.screen.width);
+
+            // отскок от верхней границы
+            if (ball.y - ball.radius <= 0) {
+                ball.y = ball.radius;
+                ball.vy = Math.abs(ball.vy);
+            }
+
+            // падение мяча за нижний край
+            if (ball.y > this.app.screen.height + ball.radius) {
+                if (ball.graphic.parent) {
+                    this.app.stage.removeChild(ball.graphic);
+                }
+                this.balls.splice(i, 1);
+                continue;
+            }
+
+            // столкновение с платформой
+            CollisionManager.checkPaddleCollision(ball, this.paddle);
+
+            // столкновение с блоками (передаем this.powerUps)
+            CollisionManager.checkBrickCollisions(ball, this.bricks, this.app.stage, (brick, isDestroyed) => {
+                if (isDestroyed) {
+                    this.score += (brick.maxHp > 1 ? 20 : 10);
+                    this.scoreText.text = `SCORE: ${this.score}`;
+                }
+            }, this.powerUps);
+        }
+
+        // проверка поражения (все мячи потеряны)
+        if (this.balls.length === 0) {
             this.state = 'GAME_OVER';
             this.messageText.text = 'GAME OVER\n\nCLICK TO RESTART';
-        });
-
-        if (this.state !== 'PLAYING') return;
-
-        // проверка столкновения с платформой
-        CollisionManager.checkPaddleCollision(this.ball, this.paddle);
-
-        // проверка столкновений с блоками
-        CollisionManager.checkBrickCollisions(this.ball, this.bricks, this.app.stage, (brick) => {
-            this.score += 10;
-            this.scoreText.text = `SCORE: ${this.score}`;
-        });
+            return;
+        }
 
         // проверка на победу
         if (this.bricks.length === 0) {
             this.state = 'VICTORY';
             this.messageText.text = 'VICTORY!\n\nCLICK TO RESTART';
+        }
+    }
+
+    activatePowerUp(type) {
+        if (type === 'E') {
+            // Expand: увеличение платформы на 35% на 12 секунд
+            this.paddle.width = 135;
+            this.paddle.draw();
+            if (this.expandTimer) clearTimeout(this.expandTimer);
+            this.expandTimer = setTimeout(() => {
+                if (this.paddle) {
+                    this.paddle.width = 100;
+                    this.paddle.draw();
+                }
+            }, 12000);
+        } else if (type === 'D') {
+            // Disruption: разделение текущего мяча на 3 мяча
+            const newBalls = [];
+            this.balls.forEach(ball => {
+                for (let angleOffset of [-0.4, 0.4]) {
+                    const b = new Ball();
+                    b.x = ball.x;
+                    b.y = ball.y;
+                    
+                    const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+                    const currentAngle = Math.atan2(ball.vy, ball.vx);
+                    const newAngle = currentAngle + angleOffset;
+
+                    b.vx = speed * Math.cos(newAngle);
+                    b.vy = speed * Math.sin(newAngle);
+
+                    b.updatePosition();
+                    b.addToStage(this.app.stage);
+                    newBalls.push(b);
+                }
+            });
+            this.balls.push(...newBalls);
+        } else if (type === 'S') {
+            // Slow: снижение скорости всех мячей на 30% на 10 секунд
+            this.balls.forEach(ball => {
+                ball.vx *= 0.7;
+                ball.vy *= 0.7;
+            });
+            if (this.slowTimer) clearTimeout(this.slowTimer);
+            this.slowTimer = setTimeout(() => {
+                this.balls.forEach(ball => {
+                    ball.vx /= 0.7;
+                    ball.vy /= 0.7;
+                });
+            }, 10000);
         }
     }
 }
